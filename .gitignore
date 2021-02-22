@@ -3,3 +3,9 @@
 *.csv
 
 
+task_folder/*.*
+flags/*.*
+
+
+
+
