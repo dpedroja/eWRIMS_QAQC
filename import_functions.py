@@ -50,7 +50,57 @@ def import_flat_file_season():
     season_use = pd.read_csv("eWRIMS_data/ewrims_flat_file_use_season.csv", usecols = flat_season_cols, low_memory = False)
     return season_use
 
-	
-	
-	
+def import_rms(rows):
+    import pandas as pd
+    # read in RMS data
+    rms = pd.read_csv("eWRIMS_data/water_use_report.csv", nrows = rows, low_memory=False)
+    # combine storage & direct diversion amounts
+    rms = rms.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
+    return rms
+
+def import_rms_annual(rows):
+    import pandas as pd
+    # read in RMS data
+    rms_annual = pd.read_csv("eWRIMS_data/water_use_report.csv", nrows = rows, low_memory=False)
+    # combine storage & direct diversion amounts
+    rms_annual = rms_annual.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
+    # aggregate monthly use into annual use
+    rms_annual = rms_annual.groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR"]).sum()
+    return rms_annual
+
+def import_rms_monthly(rows):
+    import pandas as pd
+    # read in RMS data
+    rms_monthly = pd.read_csv("eWRIMS_data/water_use_report.csv", nrows = rows, low_memory=False)
+    # combine storage & direct diversion amounts
+    rms_monthly = rms_monthly.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
+    rms_monthly = rms_monthly.unstack()
+    rms_monthly.columns = rms_monthly.columns.droplevel()
+    rms_monthly.columns = ["JANUARY_DIV", "FEBRUARY_DIV", "MARCH_DIV", "APRIL_DIV", 
+                       "MAY_DIV", "JUNE_DIV", "JULY_DIV", "AUGUST_DIV", 
+                       "SEPTEMBER_DIV", "OCTOBER_DIV", "NOVEMBER_DIV", "DECEMBER_DIV"]
+    return rms_monthly
+
+def import_rms_monthly_mean():
+    import pandas as pd
+    # read in RMS data
+    rms_monthly_mean = pd.read_csv("eWRIMS_data/water_use_report.csv", low_memory=False)
+    # combine storage & direct diversion amounts
+    rms_monthly_mean = rms_monthly_mean.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
+    rms_monthly_mean = rms_monthly_mean.unstack()
+    rms_monthly_mean = rms_monthly_mean.groupby(by = ["WATER_RIGHT_ID", "APPL_ID"]).mean()
+    rms_monthly_mean.columns = rms_monthly_mean.columns.droplevel()
+    rms_monthly_mean.columns = ["JANUARY_MEAN_DIV", "FEBRUARY_MEAN_DIV", "MARCH_MEAN_DIV", "APRIL_MEAN_DIV", 
+                        "MAY_MEAN_DIV", "JUNE_MEAN_DIV", "JULY_MEAN_DIV", "AUGUST_MEAN_DIV", 
+                        "SEPTEMBER_MEAN_DIV", "OCTOBER_MEAN_DIV", "NOVEMBER_MEAN_DIV", "DECEMBER_MEAN_DIV"]
+    return rms_monthly_mean
+
+
+
+
+
+
+
+
+
 
