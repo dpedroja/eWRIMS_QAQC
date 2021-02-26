@@ -1,11 +1,12 @@
 .spyproject
 *.xlsx
 *.csv
-
-
+distance_matrix.py
+distance_methods.py
 task_folder/*.*
 flags/*.*
+ *.docx
 
 
-
+group1.py
 

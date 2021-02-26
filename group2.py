@@ -8,10 +8,22 @@ Created on Tue Feb 23 13:20:05 2021
 
 import pandas as pd
 import numpy as np
+import import_functions as imp
+
+flat_data = imp.import_flat_file()
+
+
+# Flag 21: Verify if accurate reporting when reported "USE" is same value as "STORAGE”
 
 # read in RMS data
 rms = pd.read_csv("eWRIMS_data/water_use_report.csv", nrows= 10000, low_memory=False)
 # rms = pd.read_csv("data/water_use_report.csv", low_memory=False)
+
+flag_21_data = rms
+
+
+
+
 
 # combine storage & direct diversion amounts
 rms = rms.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
@@ -19,16 +31,6 @@ rms = rms.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
 rms_annual = rms.groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR"]).sum()
 # del wr to save memory if desired
 del(rms)
-
-# read in flat file data
-
-# Flat file fields in use
-flat_cols = ["APPLICATION_NUMBER", "WATER_RIGHT_TYPE", "FACE_VALUE_AMOUNT", "HUC_8_NUMBER", "POD_STATUS", "POD_COUNT", "LATITUDE", "LONGITUDE", "NORTH_COORD", "EAST_COORD"]
-flat_data = pd.read_csv("eWRIMS_data/ewrims_flat_file.csv", usecols = flat_cols)
-# # drop records with null APPLICATION_NUMBER
-flat_data.dropna(axis = 0, subset=["APPLICATION_NUMBER"], inplace=True)
-# set index to APPLICATION_NUMBER
-flat_data.set_index("APPLICATION_NUMBER", drop = True, inplace = True)
 
 # merge data
 flag_2_data = rms_annual.merge(flat_data, how= "left", left_on='APPL_ID', right_index = True) 

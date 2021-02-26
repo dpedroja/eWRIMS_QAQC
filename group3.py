@@ -9,10 +9,13 @@ Created on Wed Feb 24 08:18:53 2021
 
 import pandas as pd
 import numpy as np
-# flag 8 Fields in use
-flag_8_cols = ["CONTACT_INFORMATION_PHONE", "CONTACT_INFORMATION_EMAIL"]
+
+# Flat file party fields in use
+flat_party_cols = ["CONTACT_INFORMATION_PHONE", "CONTACT_INFORMATION_EMAIL"]
 # read in data
-flag_8_data = pd.read_csv("eWRIMS_data/ewrims_flat_file_party.csv", usecols = flag_8_cols)
+flat_party_data = pd.read_csv("eWRIMS_data/ewrims_flat_file_party.csv", usecols = flat_party_cols)
+
+flag_8_data = flat_party_data
 
 # number of character criteria
 # define function that counts characters and returns Y if less than 9
