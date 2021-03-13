@@ -10,6 +10,7 @@ Created on Wed Feb 24 08:18:53 2021
 import pandas as pd
 import numpy as np
 
+# Flag 8: Identify incomplete or missing contact information in eWRIMS 
 # Flat file party fields in use
 flat_party_cols = ["CONTACT_INFORMATION_PHONE", "CONTACT_INFORMATION_EMAIL"]
 # read in data

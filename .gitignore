@@ -1,6 +1,7 @@
 .spyproject
 *.xlsx
 *.csv
+*.txt
 distance_matrix.py
 distance_methods.py
 task_folder/*.*
