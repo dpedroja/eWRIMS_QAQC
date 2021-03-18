@@ -252,8 +252,12 @@ flag_23_merge.drop(["USE_CODE"], axis = 1, inplace = True)
 # number of records is greater than RMS because some applications have different diversion months for differenct use codes (apparentely)
 flag_23_merge.drop_duplicates(inplace = True)
 
-
 flag_23_merge.columns
+
+
+
+
+
 
 
 ##################################################################################################
