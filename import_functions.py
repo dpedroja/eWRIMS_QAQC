@@ -31,6 +31,8 @@ def import_flat_file():
     flat_data = pd.read_csv("eWRIMS_data/ewrims_flat_file.csv", usecols = flat_cols, low_memory = False)
     # # drop records with null APPLICATION_NUMBER
     flat_data.dropna(axis = 0, subset=["APPLICATION_NUMBER"], inplace=True)
+    # flat_data.drop_duplicates(subset=["APPLICATION_NUMBER"])
+    flat_data = flat_data.drop_duplicates()
     # set index to APPLICATION_NUMBER
     flat_data.set_index("APPLICATION_NUMBER", drop = True, inplace = True)
     return flat_data
@@ -156,7 +158,6 @@ def import_rms_monthly_direct(rows):
     return rms_monthly_direct
 
 
-
 def import_rms_all(rows):
     import import_functions as imp
     # read in RMS data
@@ -183,7 +184,10 @@ def import_rms_monthly_mean():
     return rms_monthly_mean
 
 
-
+def import_rms_raw(rows):
+    import pandas as pd
+    rms_raw =  pd.read_csv("eWRIMS_data/water_use_report.csv", nrows = rows, low_memory=False)
+    return rms_raw
 
 
 

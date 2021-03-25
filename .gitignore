@@ -6,8 +6,11 @@ distance_matrix.py
 distance_methods.py
 task_folder/*.*
 flags/*.*
+INSTRUCTIONS/*.*
+output/*.*
  *.docx
+database.py
+access.py
 
 
-group1.py
 
