@@ -85,6 +85,7 @@ flag_2_data["POSSIBLE_CONV_ERROR_TIER_2"] = np.where(
     (flag_2_data["AMOUNT"] > 3*(flag_2_data["FACE_VALUE_AMOUNT"])),
     "Y", "N")
 
+flag_2_data.to_csv("output\\f2_unit_conv_error.csv")
         
 # MISCELLANEOUS
 
@@ -115,29 +116,74 @@ flag_4_data_huc_count["MULTI_ACTIVE_PODS"] = np.where(
     (flag_4_data_huc_count["HUC_12_NUMBER"] > 1),    
     "Y", "N")
 
-# Record counts?
-# merge to what file?
-
-
-
-
-
-
-
-
-
-
-
-
-
+flag_4_data_huc_count.to_csv("output\\f4_pods_by_huc.csv")
 
 ##########################################################################################
 
-
-# Flag 6a: Identifying riparian and pre-1914 water rights and assigning a priority date 
+# Flag 6: Assign Priority Date 
 # read in data
 flat_data = imp.import_flat_file()
-flag_6a_data = flat_data
+flag_6_data = flat_data
+# define new fields
+flag_6_data["ASSIGNED_PRIORITY_DATE"] = "NA"
+flag_6_data["ASSIGNED_PRIORITY_DATE_SOURCE"] = "NA"
+
+# unique values of WATER_RIGHT_TYPE (for reference)
+vals_sub_type = flag_6_data["WATER_RIGHT_TYPE"].unique()
+# select WATER_RIGHT_TYPE "Statement of Div and Use" and "Federal Claims"
+flag_6_a = flag_6_data[(flag_6_data["WATER_RIGHT_TYPE"] == "Statement of Div and Use") | 
+                       (flag_6_data["WATER_RIGHT_TYPE"] == "Federal Claims") ]
+
+flag_6_a["ASSIGNED_PRIORITY_DATE"] = np.where(
+    (
+     (flag_6_a["SUB_TYPE"] == "PRE1914,") |
+     (flag_6_a["SUB_TYPE"] == "PRE1914,COURTADJ,")
+     )   &
+    (flag_6_a["YEAR_DIVERSION_COMMENCED"].isna()),
+    11111111, "NA")
+
+flag_6_a["ASSIGNED_PRIORITY_DATE"] = np.where(
+    (flag_6_a["ASSIGNED_PRIORITY_DATE"] != 11111111) &
+    (flag_6_a["YEAR_DIVERSION_COMMENCED"] <= 1914),
+    (flag_6_a["YEAR_DIVERSION_COMMENCED"]*10000 + 101), 10000000)
+
+flag_6_a["ASSIGNED_PRIORITY_DATE_SOURCE"] = np.where(
+    (
+     (flag_6_a["SUB_TYPE"] == "PRE1914,") |
+     (flag_6_a["SUB_TYPE"] == "PRE1914,COURTADJ,"))  &
+    (flag_6_a["YEAR_DIVERSION_COMMENCED"].isna()),
+    "PRE1914 DEFAULT", "RIPARIAN DEFAULT")
+
+flag_6_a["ASSIGNED_PRIORITY_DATE_SOURCE"] = np.where(
+    (flag_6_a["ASSIGNED_PRIORITY_DATE"] != 11111111) &
+    (flag_6_a["YEAR_DIVERSION_COMMENCED"] <= 1914),
+    flag_6_a["YEAR_DIVERSION_COMMENCED"], "NA")
+
+##################################################
+
+flag_6_data = flat_data[1:40931]
+flag_6_b = flag_6_data[(flag_6_data["WATER_RIGHT_TYPE"] != "Statement of Div and Use") & 
+                       (flag_6_data["WATER_RIGHT_TYPE"] != "Federal Claims") ]
+
+dates = flag_6_b[["PRIORITY_DATE","APPLICATION_RECD_DATE", "APPLICATION_ACCEPTANCE_DATE"]]
+dates = dates.fillna(("01/01/2100 12:00:00 AM"))
+
+import datetime as dt
+dates["PRIORITY_DATE"] = pd.to_datetime(dates["PRIORITY_DATE"]).dt.date
+dates["RECEIPT_DATE"] = pd.to_datetime(dates["RECEIPT_DATE"]).dt.date
+dates["APPLICATION_RECD_DATE"] = pd.to_datetime(dates["APPLICATION_RECD_DATE"]).dt.date
+dates["APPLICATION_ACCEPTANCE_DATE"] = pd.to_datetime(dates["APPLICATION_ACCEPTANCE_DATE"]).dt.date
+
+test = dates.min(axis = 1)
+'''
+# WRONG date !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+WR_ID
+45088
+APP_NUMBER G193521
+'''
+
+
+
 # unique values of SUB_TYPE (for reference)
 vals_sub_type = flag_6a_data["SUB_TYPE"].unique()
 
@@ -183,8 +229,6 @@ flag_6a_data["ASSIGNED_PRIORITY_DATE"] = np.where(
 # data
 flag_6b_data = flat_data
 
-# unique values of SUB_TYPE
-vals_water_right_type = flag_6b_data["WATER_RIGHT_TYPE"].unique()
 
 # value criteria for POST_1914_APPROPRIATIVE
 flag_6b_data["POST_1914_APPROPRIATIVE"] = np.where(
@@ -241,56 +285,26 @@ flag_6b_data["PRIORITY_DATE_SOURCE"] = np.where(
     (flag_6b_data["ASSIGNED_PRIORITY_DATE"] != flag_6b_data["APPLICATION_ACCEPTANCE_DATE"]) ,
     "APPLICATION_RECD_DATE", "PRIORITY_DATE")   
 
-            
-'Temporary Permit', 
-'Appropriative (State Filing)', 
-'Cert of Right - Power', 
-'Federal Claims',
-'Federal Stockponds', 
-'Groundwater Recordation',
-'Statement of Div and Use',
-'Section 12 File', 
-'Waste Water Change', 
-'Not Determined',
-'Adjudicated', 
-'Non Jurisdictional', 
-'Registration Cannabis'
-
-# function to suppress scientific notation (for convenience)
-
-def suppress_sci(x):
-    output =  f"{x:.9f}"
-    return output
 
 ##########################################################################################
 
-# Flag 7: Identify water rights with Non-Consumptive Uses to account for water use returning water diverted back to the system
+# Flag 7: Return Flows by Beneficial Use Type 
 # read in data
 flat_file_data = imp.import_flat_file()
 flat_file_season = imp.import_flat_file_season()
 # merge data
 flag_7_data = flat_file_season.merge(flat_file_data, how = "left", on = "WR_WATER_RIGHT_ID")
+# unique values of USE_CODE (for reference)
+vals_sub_type = flag_7_data["USE_CODE"].unique()
 
-# new field: USE_RETURN
-# value criteria
+# new field: USE_RETURN_JAN, etc.
 
-flag_7_data["USE_RETURN"] = np.where( 
-    (flag_7_data["USE_CODE"] == "Power")            |       
-    (flag_7_data["USE_CODE"] == "Aquaculture")      &                 
-    (
-    (flag_7_data["USE_STORAGE_AMOUNT"].notna())     |
-    (flag_7_data["USE_DIRECT_DIV_ANNUAL_AMOUNT"].notna())
-    ),
-    flag_7_data["USE_STORAGE_AMOUNT"] + flag_7_data["USE_DIRECT_DIV_ANNUAL_AMOUNT"], 0)
+lookup = pd.read_csv("eWRIMS_data\\flag_7_lookup.csv")
 
+flag_7_data = flag_7_data[["APPLICATION_NUMBER", "USE_CODE"]]
+flag_7_data = flag_7_data.merge(lookup, how = "left", left_on = "USE_CODE", right_on = "USE_CODE")
 
-
-
-
-
-
-
-
+flag_7_data.to_csv("output\\f7_water_use_return.csv")
 
 ##########################################################################################
 # Flag 8: Identify incomplete or missing contact information in eWRIMS 
@@ -316,6 +330,8 @@ flag_8_data["MISSING_PHONE_NUMBER"] = np.where(
     (flag_8_data["CONTACT_INFORMATION_PHONE"] == "000-000-0000")    |
     (flag_8_data["MISSING_PHONE_NUMBER"] == "Y"), 
     "Y", "N")
+
+flag_8_data.to_csv("output\\f8_missing_contact_info.csv")
 
 
 ##########################################################################################
@@ -406,14 +422,6 @@ flag_19_data["DUPE_REPORTS"] = np.where(
 
 flag_19_data.columns
 
-
-
-
-
-
-
-flag_19_data.columns
-
 # flag_19_data = flag_19_data[["APPLICATION_PRIMARY_OWNER","APPL_ID", "YEAR", "ANNUAL_AMOUNT"]]
 # flag_19_data = flag_19_data.groupby(by = ["APPLICATION_PRIMARY_OWNER", "ANNUAL_AMOUNT"]).count()
 # flag_19_data = flag_19_data.groupby(by = ["APPLICATION_PRIMARY_OWNER", "WATER_RIGHT_ID", "YEAR", "ANNUAL_AMOUNT"]).count()
@@ -437,11 +445,11 @@ flag_19_data["DUPLICATE_REPORT_MULT_RIGHTS "] = np.where(
 
 # read in data
 rms_raw = imp.import_rms_raw(999999999)
-
+# unmodified water_use_report
 flag_20_data = rms_raw
-
+# obtain unique values of DIVERSION_TYPE
 div_types = flag_20_data["DIVERSION_TYPE"].unique()
-
+# separate by DIVERSION_TYPE
 flag_20_DIRECT = flag_20_data[flag_20_data["DIVERSION_TYPE"] == "DIRECT"]
 flag_20_USE = flag_20_data[flag_20_data["DIVERSION_TYPE"] == "USE"]
 flag_20_STORAGE = flag_20_data[flag_20_data["DIVERSION_TYPE"] == "STORAGE"]
@@ -449,27 +457,52 @@ flag_20_Combined = flag_20_data[flag_20_data["DIVERSION_TYPE"] == "Combined (Dir
 
 flag_20_DIRECT = flag_20_DIRECT.drop(["MONTH"], axis = 1)
 flag_20_DIRECT = flag_20_DIRECT[flag_20_DIRECT["AMOUNT"] > 0].groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR", "AMOUNT"]).count()
+flag_20_USE = flag_20_USE.drop(["MONTH"], axis = 1)
+flag_20_USE = flag_20_USE[flag_20_USE["AMOUNT"] > 0].groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR", "AMOUNT"]).count()
+flag_20_STORAGE = flag_20_STORAGE.drop(["MONTH"], axis = 1)
+flag_20_STORAGE = flag_20_STORAGE[flag_20_STORAGE["AMOUNT"] > 0].groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR", "AMOUNT"]).count()
+flag_20_Combined = flag_20_Combined.drop(["MONTH"], axis = 1)
+flag_20_Combined = flag_20_Combined[flag_20_Combined["AMOUNT"] > 0].groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR", "AMOUNT"]).count()
 
 flag_20_DIRECT["DUPLICATE_MONTHLY_REPORTING"] = np.where(
     (flag_20_DIRECT["DIVERSION_TYPE"] == 12),
     "Y", "N")
+flag_20_DIRECT = flag_20_DIRECT.reset_index()
+flag_20_DIRECT = flag_20_DIRECT[["APPL_ID", "DUPLICATE_MONTHLY_REPORTING"]][flag_20_DIRECT["DUPLICATE_MONTHLY_REPORTING"]=="Y"]
 
+flag_20_USE["DUPLICATE_MONTHLY_REPORTING"] = np.where(
+    (flag_20_USE["DIVERSION_TYPE"] == 12),
+    "Y", "N")
+flag_20_USE = flag_20_USE.reset_index()
+flag_20_USE = flag_20_USE[["APPL_ID", "DUPLICATE_MONTHLY_REPORTING"]][flag_20_USE["DUPLICATE_MONTHLY_REPORTING"]=="Y"]
 
+flag_20_STORAGE["DUPLICATE_MONTHLY_REPORTING"] = np.where(
+    (flag_20_STORAGE["DIVERSION_TYPE"] == 12),
+    "Y", "N")
+flag_20_STORAGE = flag_20_STORAGE.reset_index()
+flag_20_STORAGE = flag_20_STORAGE[["APPL_ID", "DUPLICATE_MONTHLY_REPORTING"]][flag_20_STORAGE["DUPLICATE_MONTHLY_REPORTING"]=="Y"]
 
-# Number of Non-zero months
-# flag_20_DIRECT = flag_20_DIRECT[flag_20_DIRECT["AMOUNT"] > 0].groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR"]).count()
+flag_20_Combined["DUPLICATE_MONTHLY_REPORTING"] = np.where(
+    (flag_20_Combined["DIVERSION_TYPE"] == 12),
+    "Y", "N")
+flag_20_Combined = flag_20_Combined.reset_index()
+flag_20_Combined = flag_20_Combined[["APPL_ID", "DUPLICATE_MONTHLY_REPORTING"]][flag_20_Combined["DUPLICATE_MONTHLY_REPORTING"]=="Y"]
 
-# flag_20_DIRECT["NUM_NON_0_MO"] = np.where(
-#     flag_20_DIRECT[flag_20_DIRECT["AMOUNT"] > 0].groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR", "AMOUNT"]).count()
-#     )
+flag_20_data = pd.concat([flag_20_DIRECT, flag_20_USE, flag_20_STORAGE, flag_20_Combined])
+flag_20_data = flag_20_data.drop_duplicates()
 
+rms_annual = imp.import_rms_annual(999999999)
+rms_annual.reset_index(inplace = True, drop = True)
+flag_20_annual = rms_annual[rms_annual["AMOUNT"] > 0].groupby(["WATER_RIGHT_ID", "APPL_ID", "AMOUNT"]).count()
+flag_20_annual.columns
 
+flag_20_annual["NUMBER_OF_REPEATED_REPORTS"] = np.where(
+    (flag_20_annual["YEAR"] > 1),
+    flag_20_annual["YEAR"], 0
+    )
+flag_20_annual.drop(["YEAR"], axis = 1, inplace = True)
 
-
-
-
-
-
+flag_20_annual.to_csv("output\\f20_repeat_dup_reports.csv")
 
 ##################################################################################################
 
@@ -492,5 +525,133 @@ both_div_types["STORAGE_EQUALS_USE"] = np.where(
 flag_21_data = flag_21_data.merge(both_div_types, how = "left", left_on = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"], right_on = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"])
 flag_21_data.drop("AMOUNT_y", axis = 1, inplace = True)
 
+flag_21_data.to_csv("output\\f21_duplicate_storage_use.csv")
+
 ##################################################################################################
 
+# this routine supports flags 22 and 23
+
+# first get length of diversion season in months (A)
+
+# read in data
+flat_file_season = imp.import_flat_file_season()
+flag_22_data = flat_file_season
+flat_file_data = imp.import_flat_file()
+
+# replace NaN with 0
+flag_22_data = flag_22_data.fillna(0)
+# define diversion seasons
+season_start = ["DIRECT_SEASON_START_MONTH_1", "DIRECT_SEASON_START_MONTH_2", "DIRECT_SEASON_START_MONTH_3"]
+season_end = ["DIRECT_DIV_SEASON_END_MONTH_1", "DIRECT_DIV_SEASON_END_MONTH_2", "DIRECT_DIV_SEASON_END_MONTH_3"]
+# define fields with lists as values
+div_fields = ["DIVERSION_MONTHS", "DIVERSION_MONTHS_2", "DIVERSION_MONTHS_3"]
+for field in div_fields:
+    flag_22_data[field] = [[]] * len(flag_22_data) 
+
+# populate list of lists of months
+# TAKES A FEW MINUTES
+for k, field in enumerate(season_start):
+    for i in range(len(flag_22_data)):
+        months = range(int(flag_22_data[season_start[k]][i]), 
+        int(flag_22_data[season_end[k]][i]+1))
+        flag_22_data[div_fields[k]][i] = [month for month in months] 
+    for i in range(len(flag_22_data)):
+        print(k,i)
+        if (flag_22_data[season_start[k]][i] > flag_22_data[season_end[k]][i]):
+            months = range(int(flag_22_data[season_start[k]][i]), 13) 
+            months2 = range(1, int(flag_22_data[season_end[k]][i]))
+            flag_22_data[div_fields[k]][i] = [month for month in months]
+            months2 = [month for month in months2]
+            for element in months2:
+                flag_22_data[div_fields[k]][i].append(element)
+# define new field DIV_SEASON_LENGTH
+flag_22_data["DIV_SEASON_LENGTH"]= "NA"            
+# length of diversion season in months
+for i, app in enumerate(flag_22_data["POD_ID"]):
+    a = set(flag_22_data["DIVERSION_MONTHS"][i])
+    a.discard(0)
+    b = set(flag_22_data["DIVERSION_MONTHS_2"][i])
+    b.discard(0)
+    c = set(flag_22_data["DIVERSION_MONTHS_3"][i])
+    c.discard(0)
+    d = (a.union(b)).union(c)
+    flag_22_data["DIV_SEASON_LENGTH"][i] = len(d)
+
+# get face value amount from flat file & merge
+flag_22_data = flag_22_data.merge(flat_file_data, how = "left", on = "WR_WATER_RIGHT_ID")
+
+# calculate monthly amount as FACE_VALUE_AMOUNT divided by DIV_SEASON_LENGTH calculated above
+flag_22_data["FV_PER_MONTH"] = [np.divide(flag_22_data["FACE_VALUE_AMOUNT"][i], flag_22_data["DIV_SEASON_LENGTH"][i], 
+              out=np.zeros_like(flag_22_data["FACE_VALUE_AMOUNT"][i]), where=flag_22_data["DIV_SEASON_LENGTH"][i]!=0) 
+     for i, right in enumerate(flag_22_data["FACE_VALUE_AMOUNT"])]
+
+# create month field names
+months = ["DIRECT_DIV_JANUARY", "DIRECT_DIV_FEBRUARY", "DIRECT_DIV_MARCH", "DIRECT_DIV_APRIL", 
+          "DIRECT_DIV_MAY", "DIRECT_DIV_JUNE", "DIRECT_DIV_JULY", "DIRECT_DIV_AUGUST", 
+          "DIRECT_DIV_SEPTEMBER", "DIRECT_DIV_OCTOBER", "DIRECT_DIV_NOVEMBER", "DIRECT_DIV_DECEMBER"]
+for month in months:
+    flag_22_data[month] = "NA"
+# check each month against list
+# COULD TAKE A WHILE (5 MINUTES OR MORE)
+for j, month in enumerate(months):
+    for i in range(len(flag_22_data)):
+        print(j,i)
+        flag_22_data[month][i] = np.where(
+            ((j+1) in flag_22_data["DIVERSION_MONTHS"][i])  |
+            ((j+1) in flag_22_data["DIVERSION_MONTHS_2"][i])  |
+            ((j+1) in flag_22_data["DIVERSION_MONTHS_3"][i]),
+            "1", "0")
+
+# FLAG 22 loop
+
+# define field names
+monthly_dist_fv = ["JANUARY_DISTRIBUTION_FV", "FEBRUARY_DISTRIBUTION_FV", "MARCH_DISTRIBUTION_FV", "APRIL_DISTRIBUTION_FV", 
+          "MAY_DISTRIBUTION_FV", "JUNE_DISTRIBUTION_FV", "JULY_DISTRIBUTION_FV", "AUGUST_DISTRIBUTION_FV", 
+          "SEPTEMBER_DISTRIBUTION_FV", "OCTOBER_DISTRIBUTION_FV", "NOVEMBER_DISTRIBUTION_FV", "DECEMBER_DISTRIBUTION_FV"]
+for field_name in monthly_dist_fv:
+    flag_22_data[field_name] = "NA"
+# define (January) distribution as DIRECT_DIV_JAN * FV_PER_MONTH
+for k, month in enumerate(monthly_dist_fv):
+    flag_22_data[monthly_dist_fv[k]] = (np.array(flag_22_data["FV_PER_MONTH"], dtype = float) * np.array(flag_22_data[months[k]], dtype = float)).round(3)
+
+flag_22_data.to_csv("output\\f22_apportion_fv.csv")
+# Flag 22 end
+
+# Flag 23: Flag water rights with reported diversions outside of diversion season
+# select a subset of fields
+div_season_data = pd.DataFrame(flag_22_data[["WR_WATER_RIGHT_ID", "APPLICATION_NUMBER", "USE_CODE",
+        "DIRECT_DIV_JANUARY", "DIRECT_DIV_FEBRUARY", "DIRECT_DIV_MARCH", "DIRECT_DIV_APRIL", 
+        "DIRECT_DIV_MAY", "DIRECT_DIV_JUNE", "DIRECT_DIV_JULY", "DIRECT_DIV_AUGUST",
+        "DIRECT_DIV_SEPTEMBER", "DIRECT_DIV_OCTOBER", "DIRECT_DIV_NOVEMBER", "DIRECT_DIV_DECEMBER"]])
+# change back to Y / N data
+div_season_data = div_season_data.replace("0", "N")
+div_season_data = div_season_data.replace("1", "Y")
+# import rms monthly data
+rms_monthly = imp.import_rms_monthly(100000000000000)
+rms_monthly.reset_index(inplace = True)
+# merge data
+flag_23_data = rms_monthly.merge(div_season_data, how = "inner", left_on = "APPL_ID", right_on = "APPLICATION_NUMBER")
+# this merge multiplies a lot of records because of multiple use types per application number. 
+
+# rms monthly reported diversion fields
+div_reported = ["JANUARY_DIV", "FEBRUARY_DIV", "MARCH_DIV", "APRIL_DIV", 
+              "MAY_DIV", "JUNE_DIV", "JULY_DIV", "AUGUST_DIV", 
+              "SEPTEMBER_DIV", "OCTOBER_DIV", "NOVEMBER_DIV", "DECEMBER_DIV"]
+# Field DIV_REPORTED_OUTSIDE_DIV_SEASON criteria
+for n, month in enumerate(div_reported):
+    flag_23_data["DIV_REPORTED_OUTSIDE_DIV_SEASON"] = np.where( 
+        (flag_23_data[div_reported[n]] > 0)                          &  
+        (flag_23_data[months[n]] == "N"),
+        "Y", "N")
+
+flag_23_data = flag_23_data[['WATER_RIGHT_ID', 'APPL_ID', 'YEAR', 
+                 'DIRECT_DIV_JANUARY', 'DIRECT_DIV_FEBRUARY', 'DIRECT_DIV_MARCH',
+                 'DIRECT_DIV_APRIL', 'DIRECT_DIV_MAY', 'DIRECT_DIV_JUNE',
+                 'DIRECT_DIV_JULY', 'DIRECT_DIV_AUGUST', 'DIRECT_DIV_SEPTEMBER',
+                 'DIRECT_DIV_OCTOBER', 'DIRECT_DIV_NOVEMBER', 'DIRECT_DIV_DECEMBER',
+                 'DIV_REPORTED_OUTSIDE_DIV_SEASON']]
+
+# number of records is greater than RMS because some applications have different diversion months for differenct use codes (apparently)
+flag_23_data = flag_23_data.drop_duplicates()
+
+flag_23_data.to_csv("output\\f23_div_out_of_season.csv")

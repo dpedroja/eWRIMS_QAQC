@@ -17,14 +17,12 @@ def import_flat_file():
                  "HUC_12_NUMBER",
                  "POD_STATUS", 
                  "POD_COUNT", 
-                 "LATITUDE", "LONGITUDE", "NORTH_COORD", "EAST_COORD", 
+                 "LATITUDE", "LONGITUDE", 
                  "YEAR_DIVERSION_COMMENCED", 
-                 "SUB_TYPE", 
+                 "SUB_TYPE",
+                 "RECEIPT_DATE",
                  "APPLICATION_ACCEPTANCE_DATE", 
                  "APPLICATION_RECD_DATE", 
-                 "USE_DIRECT_DIV_ANNUAL_AMOUNT",
-                 "DIRECT_DIV_AMOUNT",
-                 "STORAGE_AMOUNT",
                  "APPLICATION_PRIMARY_OWNER",
                  "PARTY_ID"]
     # read in data
@@ -79,26 +77,33 @@ def import_rms(rows):
     import pandas as pd
     # read in RMS data
     rms = pd.read_csv("eWRIMS_data/water_use_report.csv", nrows = rows, low_memory=False)
+    # remove USE
+    rms = rms[rms["DIVERSION_TYPE"]!= "USE"]
     # combine storage & direct diversion amounts
     rms = rms.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
     return rms
 
+# def import_rms_annual(rows):
+#     import pandas as pd
+#     # read in RMS data
+#     rms_annual = pd.read_csv("eWRIMS_data/water_use_report.csv", nrows = rows, low_memory=False)
+#     # combine storage & direct diversion amounts
+#     rms_annual = rms_annual.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
+#     # aggregate monthly use into annual use
+#     rms_annual = rms_annual.groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR"]).sum()
+#     return rms_annual
+
 def import_rms_annual(rows):
-    import pandas as pd
     # read in RMS data
-    rms_annual = pd.read_csv("eWRIMS_data/water_use_report.csv", nrows = rows, low_memory=False)
-    # combine storage & direct diversion amounts
-    rms_annual = rms_annual.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
+    rms_annual = import_rms(rows)
     # aggregate monthly use into annual use
     rms_annual = rms_annual.groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR"]).sum()
+    rms_annual.reset_index(inplace = True)
     return rms_annual
 
 def import_rms_monthly(rows):
-    import pandas as pd
     # read in RMS data
-    rms_monthly = pd.read_csv("eWRIMS_data/water_use_report.csv", nrows = rows, low_memory=False)
-    # combine storage & direct diversion amounts
-    rms_monthly = rms_monthly.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
+    rms_monthly = import_rms(rows)
     rms_monthly = rms_monthly.unstack()
     rms_monthly.columns = rms_monthly.columns.droplevel()
     rms_monthly.columns = ["JANUARY_DIV", "FEBRUARY_DIV", "MARCH_DIV", "APRIL_DIV", 
@@ -157,24 +162,17 @@ def import_rms_monthly_direct(rows):
     rms_monthly_direct["ANNUAL_AMOUNT"] = rms_annual_amount["AMOUNT"]
     return rms_monthly_direct
 
-
 def import_rms_all(rows):
-    import import_functions as imp
     # read in RMS data
-    rms_monthly = imp.import_rms_monthly(99999999999999)
-    rms_annual = imp.import_rms_annual(99999999999)
-    rms_annual.index
+    rms_monthly = import_rms_monthly(rows)
+    rms_annual = import_rms_annual(rows)
     rms_annual.columns = ["ANNUAL_AMOUNT"]
     rms_all = rms_annual.merge(rms_monthly, left_index = True, right_index = True)
     return rms_all
 
 
 def import_rms_monthly_mean():
-    import pandas as pd
-    # read in RMS data
-    rms_monthly_mean = pd.read_csv("eWRIMS_data/water_use_report.csv", low_memory=False)
-    # combine storage & direct diversion amounts
-    rms_monthly_mean = rms_monthly_mean.groupby(by = ["WATER_RIGHT_ID", "APPL_ID", "YEAR", "MONTH"]).sum()
+    rms_monthly_mean = import_rms()
     rms_monthly_mean = rms_monthly_mean.unstack()
     rms_monthly_mean = rms_monthly_mean.groupby(by = ["WATER_RIGHT_ID", "APPL_ID"]).mean()
     rms_monthly_mean.columns = rms_monthly_mean.columns.droplevel()
