@@ -24,6 +24,7 @@ def import_flat_file():
                  "APPLICATION_ACCEPTANCE_DATE", 
                  "APPLICATION_RECD_DATE", 
                  "APPLICATION_PRIMARY_OWNER",
+                 "PRIMARY_OWNER_ENTITY_TYPE",
                  "PARTY_ID"]
     # read in data
     flat_data = pd.read_csv("eWRIMS_data/ewrims_flat_file.csv", usecols = flat_cols, low_memory = False)

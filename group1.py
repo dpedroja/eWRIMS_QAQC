@@ -299,7 +299,7 @@ vals_sub_type = flag_7_data["USE_CODE"].unique()
 
 # new field: USE_RETURN_JAN, etc.
 
-lookup = pd.read_csv("eWRIMS_data\\flag_7_lookup.csv")
+lookup = pd.read_csv("eWRIMS_data\\flag_7_17_lookup.csv")
 
 flag_7_data = flag_7_data[["APPLICATION_NUMBER", "USE_CODE"]]
 flag_7_data = flag_7_data.merge(lookup, how = "left", left_on = "USE_CODE", right_on = "USE_CODE")
@@ -370,6 +370,8 @@ flag_14_data["DIV_OVER_FACE_VALUE_AMOUNT"] = np.where(
 # read in data
 flat_file_data = imp.import_flat_file()
 flat_file_season = imp.import_flat_file_season()
+flat_file_season = flat_file_season[['WR_WATER_RIGHT_ID', 'APPLICATION_NUMBER', 'USE_CODE']] 
+flat_file_season = flat_file_season.drop_duplicates()
 # merge data
 flag_17_data = flat_file_season.merge(flat_file_data, how = "left", on = "WR_WATER_RIGHT_ID")
 # Beneficial use types
@@ -378,17 +380,127 @@ vals = sorted(flag_17_data["USE_CODE"].unique())
 fields = []
 for i, item in enumerate(vals):
     fields.append(vals[i].replace(" ", "_").upper())
-    
+# Assign 1 if use code is listed
 for i, use in enumerate(vals):
     flag_17_data[fields[i]] = np.where( 
     (flag_17_data["USE_CODE"] == vals[i]),               
     1, 0)
 # select subset of fields
-flag_17_data = flag_17_data[['WR_WATER_RIGHT_ID', 'APPLICATION_NUMBER','AESTHETIC', 'AQUACULTURE', 'DOMESTIC', 'DUST_CONTROL', 'FIRE_PROTECTION', 'FISH_AND_WILDLIFE_PRESERVATION_AND_ENHANCEMENT', 'FROST_PROTECTION', 'HEAT_CONTROL', 'INCIDENTAL_POWER', 'INDUSTRIAL', 'IRRIGATION', 'MILLING', 'MINING', 'MUNICIPAL', 'OTHER', 'POWER', 'RECREATIONAL', 'SNOW_MAKING', 'STOCKWATERING', 'WATER_QUALITY']]
-# combine use types
-flag_17_data = flag_17_data.groupby(by = ["WR_WATER_RIGHT_ID", "APPLICATION_NUMBER"]).sum()
+flag_17a_data = flag_17_data[["WR_WATER_RIGHT_ID", "APPLICATION_NUMBER", "USE_CODE", "WATER_RIGHT_TYPE", "PRIMARY_OWNER_ENTITY_TYPE", "AESTHETIC", "AQUACULTURE", "DOMESTIC", "DUST_CONTROL", "FIRE_PROTECTION", "FISH_AND_WILDLIFE_PRESERVATION_AND_ENHANCEMENT", "FROST_PROTECTION", "HEAT_CONTROL", "INCIDENTAL_POWER", "INDUSTRIAL", "IRRIGATION", "MILLING", "MINING", "MUNICIPAL", "OTHER", "POWER", "RECREATIONAL", "SNOW_MAKING", "STOCKWATERING", "WATER_QUALITY"]]
+# combine use types into 1 record
+flag_17a_data = flag_17_data.groupby(by = ["WR_WATER_RIGHT_ID", "APPLICATION_NUMBER"]).sum()
 # replace 1/0 with Y/N
-flag_17_data.replace((1, 0), ("Y", "N"), inplace=True)
+flag_17a_data.replace((1, 0), ("Y", "N"), inplace=True)
+# output 17a to .csv
+flag_17a_data.to_csv("output\\f17a_beneficial_uses.csv")  
+    
+# 17b1  Identify Primary Beneficial Use 
+# select subset of fields
+flag_17b1_data = flag_17_data[["WR_WATER_RIGHT_ID", "APPLICATION_NUMBER", "USE_CODE", "WATER_RIGHT_TYPE", "PRIMARY_OWNER_ENTITY_TYPE", "AESTHETIC", "AQUACULTURE", "DOMESTIC", "DUST_CONTROL", "FIRE_PROTECTION", "FISH_AND_WILDLIFE_PRESERVATION_AND_ENHANCEMENT", "FROST_PROTECTION", "HEAT_CONTROL", "INCIDENTAL_POWER", "INDUSTRIAL", "IRRIGATION", "MILLING", "MINING", "MUNICIPAL", "OTHER", "POWER", "RECREATIONAL", "SNOW_MAKING", "STOCKWATERING", "WATER_QUALITY"]]
+# create more field temporary headings for 17b
+fields = []
+for i, item in enumerate(vals):
+    fields.append(vals[i].replace(" ", "_"))
+# get lookup table of rankings
+lookup = pd.read_csv("eWRIMS_data\\flag_7_17_lookup.csv")
+# define dictionary
+lookup_dict = pd.Series(lookup.USE_RANKING.values,index=lookup.USE_CODE).to_dict()
+# loop to assign ranking or 0 depending on use 
+for i, use in enumerate(vals):
+    flag_17b1_data[fields[i]] = np.where( 
+    (flag_17b1_data["USE_CODE"] == vals[i]),               
+    lookup_dict[vals[i]], 0)  
+flag_17b1_data = flag_17b1_data[['WR_WATER_RIGHT_ID', 'APPLICATION_NUMBER',
+        'Aesthetic', 'Aquaculture', 'Domestic', 'Dust_Control',
+       'Fire_Protection', 'Fish_and_Wildlife_Preservation_and_Enhancement',
+       'Frost_Protection', 'Heat_Control', 'Incidental_Power', 'Industrial',
+       'Irrigation', 'Milling', 'Mining', 'Municipal', 'Other', 'Power',
+       'Recreational', 'Snow_Making', 'Stockwatering', 'Water_Quality']] 
+# consolidate in one record per APPLICATION_NUMBER
+flag_17b1_data = flag_17b1_data.groupby(by = ["WR_WATER_RIGHT_ID", "APPLICATION_NUMBER"]).sum()
+# replace 0s with a large number so the minumum will choose the highest rank (1)
+flag_17b1_data.replace(0, 10000, inplace=True)
+
+# take highest rank
+flag_17b1_data["TOP_RANK"] = flag_17b1_data.min(axis = 1)
+# lookup dictionary reversed
+lookup_dict2 = pd.Series(lookup.USE_CODE.values,index=lookup.USE_RANKING).to_dict()
+# convert ranking to use
+flag_17b1_data["PRIMARY_USE"] = "NA"
+for i, app in enumerate(flag_17b1_data["TOP_RANK"]):
+    flag_17b1_data["PRIMARY_USE"].iloc[i] = lookup_dict2[flag_17b1_data["TOP_RANK"].iloc[i]]
+# save the above until later
+
+# 17b2  Identify Primary Beneficial Use 
+# values of fields for reference
+wr_types = flag_17_data["WATER_RIGHT_TYPE"].unique()
+entity_types = flag_17_data["PRIMARY_OWNER_ENTITY_TYPE"].unique()
+# select subset of fields
+flag_17b2_data = flag_17_data[["WR_WATER_RIGHT_ID", "APPLICATION_NUMBER", "USE_CODE", "WATER_RIGHT_TYPE", "PRIMARY_OWNER_ENTITY_TYPE", "AESTHETIC", "AQUACULTURE", "DOMESTIC", "DUST_CONTROL", "FIRE_PROTECTION", "FISH_AND_WILDLIFE_PRESERVATION_AND_ENHANCEMENT", "FROST_PROTECTION", "HEAT_CONTROL", "INCIDENTAL_POWER", "INDUSTRIAL", "IRRIGATION", "MILLING", "MINING", "MUNICIPAL", "OTHER", "POWER", "RECREATIONAL", "SNOW_MAKING", "STOCKWATERING", "WATER_QUALITY"]]
+flag_17b2_data["PRIMARY_USE"] = "NA"
+# define PRIMARY_USE and value criteria
+flag_17b2_data["PRIMARY_USE"] = np.where(
+    ((flag_17b2_data["WATER_RIGHT_TYPE"] == "Appropriative")  |
+    (flag_17b2_data["WATER_RIGHT_TYPE"] == "Federal Claims")  |
+    (flag_17b2_data["WATER_RIGHT_TYPE"] == "Statement of Div and Use")) &
+    ((flag_17b2_data["IRRIGATION"] == "Y") &
+    (flag_17b2_data["MUNICIPAL"] == "Y"))                    |
+    ((flag_17b2_data["WATER_RIGHT_TYPE"] == "Appropriative")  |
+    (flag_17b2_data["WATER_RIGHT_TYPE"] == "Federal Claims")  |
+    (flag_17b2_data["WATER_RIGHT_TYPE"] == "Statement of Div and Use")) &
+    ((flag_17b2_data["IRRIGATION"] == "Y") &
+    (flag_17b2_data["DOMESTIC"] == "Y")  &
+    (flag_17b2_data["PRIMARY_OWNER_ENTITY_TYPE"] == "Government (State/Municipal)")), 
+    "IRR_MUN", "NOT INCLUDED")
+
+flag_17b2_data["PRIMARY_USE"] = np.where(
+    ((flag_17b2_data["WATER_RIGHT_TYPE"] == "Stockpond")  |
+    (flag_17b2_data["WATER_RIGHT_TYPE"] == "Federal Stockponds")  |
+    (flag_17b2_data["WATER_RIGHT_TYPE"] == "Registration Livestock"))  &
+    (flag_17b2_data["PRIMARY_USE"] != "IRR_MUN"),
+    "STOCKWATERING", flag_17b2_data["PRIMARY_USE"])
+
+flag_17b2_data["PRIMARY_USE"] = np.where(
+    ((flag_17b2_data["WATER_RIGHT_TYPE"] == "Registration Irrigation")  |    
+    (flag_17b2_data["WATER_RIGHT_TYPE"] == "Registration Cannabis")) &
+    ((flag_17b2_data["PRIMARY_USE"] != "IRR_MUN") |
+     (flag_17b2_data["PRIMARY_USE"] != "STOCKWATERING")),
+     "IRRIGATION", flag_17b2_data["PRIMARY_USE"])
+
+flag_17b2_data["PRIMARY_USE"] = np.where(
+    (flag_17b2_data["WATER_RIGHT_TYPE"] == "Registration Domestic")  &
+    ((flag_17b2_data["PRIMARY_USE"] != "IRR_MUN") |
+     (flag_17b2_data["PRIMARY_USE"] != "STOCKWATERING")  |
+     (flag_17b2_data["PRIMARY_USE"] != "IRRIGATION")),
+     "DOMESTIC", flag_17b2_data["PRIMARY_USE"])
+
+flag_17b2_data = flag_17b2_data[['WR_WATER_RIGHT_ID', 'APPLICATION_NUMBER',
+       'WATER_RIGHT_TYPE', 'PRIMARY_OWNER_ENTITY_TYPE',
+       'PRIMARY_USE']].drop_duplicates()
+# Select records for assigned PRIMARY_USE by ranking
+flag_17b_merge = flag_17b2_data[flag_17b2_data["PRIMARY_USE"] == "NOT INCLUDED"]
+# set other records aside
+flag_17b2_data = flag_17b2_data[flag_17b2_data["PRIMARY_USE"] != "NOT INCLUDED"]
+
+# dont need PRIMARY_USE or WR_WATER_RIGHT_ID
+flag_17b_merge = flag_17b_merge[["APPLICATION_NUMBER", "WATER_RIGHT_TYPE",
+       "PRIMARY_OWNER_ENTITY_TYPE"]]
+# reset index so can base merge on APPLICATION_NUMBER
+flag_17b1_data.reset_index(inplace = True)
+# merge
+flag_17b = flag_17b_merge.merge(flag_17b1_data, how = "left", left_on = "APPLICATION_NUMBER", right_on = "APPLICATION_NUMBER")
+# Select fields
+flag_17b = flag_17b[['WR_WATER_RIGHT_ID', 'APPLICATION_NUMBER', 'WATER_RIGHT_TYPE', 
+    'PRIMARY_OWNER_ENTITY_TYPE', 'PRIMARY_USE']]
+# concatenate lists with each PRIMARY_USE values
+flag_17 = pd.concat([flag_17b, flag_17b2_data], axis = 0)                      
+# define EQUAL_USES
+flag_17["EQUAL_USES"] = "NA"
+flag_17["EQUAL_USES"] = np.where(
+    (flag_17["PRIMARY_USE"] == "IRR_MUN"),
+    "Y", "N")
+flag_17.to_csv("output\\f17b_primary_use_type.csv")
+
 
 ##################################################################################################
 
