@@ -21,10 +21,9 @@ flag_1a_data = flat_data[flat_data["POD_STATUS"] == "Active"]
 
 # Calculate distance matrices between PODs within each huc 8 with this package:
 from scipy.spatial import distance_matrix
-
+#n is just a counter
 n = 0
 lst=[]
-app_list = []
 for huc in flag_1a_data["HUC_8_NUMBER"].unique():
     n = n + 1
     print(n, huc)
@@ -32,25 +31,39 @@ for huc in flag_1a_data["HUC_8_NUMBER"].unique():
     dist = pd.DataFrame(distance_matrix(data.values, data.values), index=data.index, columns=data.index)
     cols = dist.index
     lst.append((pd.DataFrame(np.triu(dist, k = 1), index = cols, columns = cols)).replace(0, 999999999))
-    # df = pd.DataFrame(np.triu(dist, k = 1), index = cols, columns = cols).replace(0, 999999999)
 
+threshold = 0.0005
+app_list = []
 x = 0
 for i, list_ in enumerate(lst):
     x = x + 1
     print(x)
     df = lst[i]
-    for i, app in enumerate(df.index):
-        print(i,app)
-        df1 = df[df.loc[df.index[i]] < 0.0005]
-        app_list.append(df1.index.values)
+    for j, app in enumerate(df.index):
+        print(j,app)
+        df1 = df[df.loc[df.index[j]] < threshold]
+        if len(df1) > 0:
+            # app_list.append(tuple((df.index[j], df1.index.values[0])))
+            app_list.append(tuple((df.index[j], df1.index.values[0],  df.loc[df.index[j],df1.index.values[0]])))
         print(x)
-
-result = set().union(*app_list)
-
-# flat_data.loc["H502390"]
+# convert tuple to dataframe
+df = pd.DataFrame(app_list, columns=["APPLICATION_NUMBER_1", "APPLICATION_NUMBER_2", "DISTANCE"])
+# separate temporarily
+df_APP_1 = df[["APPLICATION_NUMBER_1", "DISTANCE"]]
+df_APP_2 = df[["APPLICATION_NUMBER_2", "DISTANCE"]]
+flag_1a_data.reset_index(inplace = True)
+# select subset of flat_file fields
+flag_1a_data[['WR_WATER_RIGHT_ID', 'APPLICATION_NUMBER', 'POD_COUNT','LATITUDE', 'LONGITUDE', 'HUC_12_NUMBER', 'HUC_8_NUMBER']]
+# merge everything together
+df_APP_1 = df_APP_1.merge(flag_1a_data, how = "left", left_on = "APPLICATION_NUMBER_1", right_on = "APPLICATION_NUMBER")
+df_APP_2 = df_APP_2.merge(flag_1a_data, how = "left", left_on = "APPLICATION_NUMBER_2", right_on = "APPLICATION_NUMBER")
+flag_1_data = df_APP_1.merge(df_APP_2, left_index = True, right_index = True, suffixes = ("_1", "_2"))
+# write output to .csv
+flag_1_data.to_csv("output\\f1_duplicate_pods.csv")
 
 #################
-
+# stuff for testing 
+'''
 dist_mat_1 = lst[133]
 dist_mat_2 = lst[10]
 dist_mat_3 = lst[84]
@@ -66,6 +79,7 @@ lat2, long2 = flag_1a_data[["LATITUDE", "LONGITUDE"]].loc["S009004"]
 
 flat_data["HUC_8_NUMBER"].loc["S008776"]
 
+'''
 
 ##########################################################################################
 
@@ -117,8 +131,9 @@ flag_4_data_huc_count["MULTI_ACTIVE_PODS"] = np.where(
     "Y", "N")
 
 flag_4_data_huc_count.to_csv("output\\f4_pods_by_huc.csv")
-
+'''
 ##########################################################################################
+
 
 # Flag 6: Assign Priority Date 
 # read in data
@@ -127,7 +142,7 @@ flag_6_data = flat_data
 # define new fields
 flag_6_data["ASSIGNED_PRIORITY_DATE"] = "NA"
 flag_6_data["ASSIGNED_PRIORITY_DATE_SOURCE"] = "NA"
-
+# populate WATER_RIGHT_TYPES Statements of Div and Use and Federal Claims
 # unique values of WATER_RIGHT_TYPE (for reference)
 vals_sub_type = flag_6_data["WATER_RIGHT_TYPE"].unique()
 # select WATER_RIGHT_TYPE "Statement of Div and Use" and "Federal Claims"
@@ -160,21 +175,71 @@ flag_6_a["ASSIGNED_PRIORITY_DATE_SOURCE"] = np.where(
     flag_6_a["YEAR_DIVERSION_COMMENCED"], "NA")
 
 ##################################################
-
-flag_6_data = flat_data[1:40931]
+# WATER_RIGHT_TYPE for everything else
+flag_6_data = flat_data
 flag_6_b = flag_6_data[(flag_6_data["WATER_RIGHT_TYPE"] != "Statement of Div and Use") & 
                        (flag_6_data["WATER_RIGHT_TYPE"] != "Federal Claims") ]
 
-dates = flag_6_b[["PRIORITY_DATE","APPLICATION_RECD_DATE", "APPLICATION_ACCEPTANCE_DATE"]]
-dates = dates.fillna(("01/01/2100 12:00:00 AM"))
+flag_6_b["ASSIGNED_PRIORITY_DATE"] = np.where(
+    (flag_6_b["PRIORITY_DATE"].isna()) &
+    (flag_6_b["RECEIPT_DATE"].isna()) &
+    (flag_6_b["APPLICATION_RECD_DATE"].isna()) &
+    (flag_6_b["APPLICATION_ACCEPTANCE_DATE"].isna()),
+    99999999, "NA")
+    
+flag_6_b = flag_6_b[["PRIORITY_DATE", "RECEIPT_DATE", "APPLICATION_RECD_DATE", "APPLICATION_ACCEPTANCE_DATE"]]
+# fill NaNs with a random date in far in the future 
+flag_6_b = flag_6_b.fillna(("01/01/2100 12:00:00 AM"))
 
+# dates = flag_6_b[["PRIORITY_DATE", "RECEIPT_DATE", "APPLICATION_RECD_DATE", "APPLICATION_ACCEPTANCE_DATE"]]
+# dates = dates.fillna(("01/01/2100 12:00:00 AM"))
+
+# convert dates to datetime data type
 import datetime as dt
-dates["PRIORITY_DATE"] = pd.to_datetime(dates["PRIORITY_DATE"]).dt.date
-dates["RECEIPT_DATE"] = pd.to_datetime(dates["RECEIPT_DATE"]).dt.date
-dates["APPLICATION_RECD_DATE"] = pd.to_datetime(dates["APPLICATION_RECD_DATE"]).dt.date
-dates["APPLICATION_ACCEPTANCE_DATE"] = pd.to_datetime(dates["APPLICATION_ACCEPTANCE_DATE"]).dt.date
+flag_6_b["PRIORITY_DATE"] = pd.to_datetime(flag_6_b["PRIORITY_DATE"]).dt.date
+flag_6_b["RECEIPT_DATE"] = pd.to_datetime(flag_6_b["RECEIPT_DATE"]).dt.date
+flag_6_b["APPLICATION_RECD_DATE"] = pd.to_datetime(flag_6_b["APPLICATION_RECD_DATE"]).dt.date
+flag_6_b["APPLICATION_ACCEPTANCE_DATE"] = pd.to_datetime(flag_6_b["APPLICATION_ACCEPTANCE_DATE"]).dt.date
+# take minimum value
+flag_6_b["MIN"] = flag_6_b.min(axis = 1)
 
-test = dates.min(axis = 1)
+
+# flag_6_b[flag_6_b["ASSIGNED_PRIORITY_DATE"] == "01/01/2100 12:00:00 AM"].columns
+
+flag_6_b[
+    flag_6_b[[
+        "PRIORITY_DATE", "RECEIPT_DATE", "APPLICATION_RECD_DATE", "APPLICATION_ACCEPTANCE_DATE"
+        ]]
+    == flag_6_b["MIN"]
+    
+    ].columns[0:5]
+
+df[df[‘Name’]==’Donna’].index.values
+
+
+flag_6_b["MIN_label"] = flag_6_b.idxmin(axis = "columns")
+
+# get column of min value
+
+
+
+
+
+
+# assigned it except where 99999999 is assigned
+flag_6_b["ASSIGNED_PRIORITY_DATE"] = "NA"
+flag_6_b["ASSIGNED_PRIORITY_DATE"] = np.where(
+    (flag_6_b["ASSIGNED_PRIORITY_DATE"] == "NA"),
+    flag_6_b["MIN"], "NA")
+
+
+#########
+    flag_6_b["ASSIGNED_PRIORITY_DATE_SOURCE"] = np.where(
+    (flag_6_b["ASSIGNED_PRIORITY_DATE"] == 99999999),
+    "UNKNOWN DEFAULT", 
+
+############
+
 '''
 # WRONG date !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 WR_ID
@@ -183,7 +248,7 @@ APP_NUMBER G193521
 '''
 
 
-
+'''
 # unique values of SUB_TYPE (for reference)
 vals_sub_type = flag_6a_data["SUB_TYPE"].unique()
 
@@ -217,7 +282,6 @@ flag_6a_data["PRE1914"] = np.where(
     (flag_6a_data["SUB_TYPE"] == "RIPERIAN,PRE1914,PENDING,OTHER,"),
     "Y", "N")
            
-
 flag_6a_data["ASSIGNED_PRIORITY_DATE"] = np.where(
     (flag_6a_data["YEAR_DIVERSION_COMMENCED"].isna()),     
     10000000, flag_6a_data["PRIORITY_DATE"])
@@ -285,6 +349,7 @@ flag_6b_data["PRIORITY_DATE_SOURCE"] = np.where(
     (flag_6b_data["ASSIGNED_PRIORITY_DATE"] != flag_6b_data["APPLICATION_ACCEPTANCE_DATE"]) ,
     "APPLICATION_RECD_DATE", "PRIORITY_DATE")   
 
+'''
 
 ##########################################################################################
 
@@ -309,10 +374,10 @@ flag_7_data.to_csv("output\\f7_water_use_return.csv")
 ##########################################################################################
 # Flag 8: Identify incomplete or missing contact information in eWRIMS 
 # Flat file party fields in use
-flat_party_cols = ["CONTACT_INFORMATION_PHONE", "CONTACT_INFORMATION_EMAIL"]
+flat_party_cols = ["APPLICATION_NUMBER", "PARTY_ID", "PARTY_NAME", "CONTACT_INFORMATION_PHONE", "CONTACT_INFORMATION_EMAIL"]
 # read in data
 flat_party_data = pd.read_csv("eWRIMS_data/ewrims_flat_file_party.csv", usecols = flat_party_cols)
-
+# flat_party_data = pd.read_csv("eWRIMS_data/ewrims_flat_file_party.csv")
 flag_8_data = flat_party_data
 
 # number of character criteria
@@ -330,6 +395,8 @@ flag_8_data["MISSING_PHONE_NUMBER"] = np.where(
     (flag_8_data["CONTACT_INFORMATION_PHONE"] == "000-000-0000")    |
     (flag_8_data["MISSING_PHONE_NUMBER"] == "Y"), 
     "Y", "N")
+
+flag_8_data.columns
 
 flag_8_data.to_csv("output\\f8_missing_contact_info.csv")
 

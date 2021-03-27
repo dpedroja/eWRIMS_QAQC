@@ -41,7 +41,10 @@ def import_flat_file_pod():
     # Flat file season fields in use
     flat_pod_cols = ["WR_WATER_RIGHT_ID" ,
                         "APPLICATION_NUMBER",
+                        "APPL_POD",
+                        "HUC_8_NUMBER",
                         "HUC_12_NUMBER",
+                        "LATITUDE", "LONGITUDE",
                         "POD_ID",
                         "POD_NUMBER",
                         "POD_STATUS",
@@ -49,9 +52,13 @@ def import_flat_file_pod():
                         "PARTY_ID"]
     # read in data
     flat_pod = pd.read_csv("eWRIMS_data/ewrims_flat_file_pod.csv", usecols = flat_pod_cols, low_memory = False)
+    # drop records with null APPLICATION_NUMBER
+    flat_pod.dropna(axis = 0, subset=["APPLICATION_NUMBER", "APPL_POD"], inplace=True)
+    # drop duplicates
+    flat_pod.drop_duplicates(subset=["APPLICATION_NUMBER"])
+    # set index to APPL_POD which is APPLICATOIN_NUMBER with POD_NUMBER
+    flat_pod.set_index("POD_ID", drop = True, inplace = True)
     return flat_pod
-
-
 
 def import_flat_file_season():
     import pandas as pd
