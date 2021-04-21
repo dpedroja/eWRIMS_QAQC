@@ -9,6 +9,12 @@ import pandas as pd
 import numpy as np
 import import_functions as imp
 
+# users
+
+users = pd.read_clipboard()
+
+
+
 def suppress_sci(x):
     output =  f"{x:.9f}"
     return output
@@ -18,6 +24,9 @@ def suppress_sci(x):
 flat_data = imp.import_flat_file()
 # select records where POD_STATUS = Active
 flag_1_data = flat_data[flat_data["POD_STATUS"] == "Active"]
+
+
+
 
 test = flag_1_data.loc[["S000713", "S000715"]]
 
@@ -102,7 +111,10 @@ flat_data["HUC_8_NUMBER"].loc["S008776"]
 # Flag 2: Unit conversion error - Identify over-reported diversions due to unit conversion errors
 #  read in data
 flat_data = imp.import_flat_file()
-rms_annual = imp.import_rms_annual()
+
+flat_data ["INI_REPORTED_DIV_AMOUNT"]
+
+rms_annual = imp.import_rms_annual(999999999)
 # merge data
 flag_2_data = rms_annual.merge(flat_data, how= "left", left_on='APPL_ID', right_index = True) 
 # calcuate percent of face value reported
@@ -117,12 +129,29 @@ flag_2_data["POSSIBLE_CONV_ERROR_TIER_1"] = np.where(
 flag_2_data["POSSIBLE_CONV_ERROR_TIER_2"] = np.where( 
     (flag_2_data["AMOUNT"] > 3*(flag_2_data["FACE_VALUE_AMOUNT"])),
     "Y", "N")
+
+
+
+
+flag_2_data = flag_2_data[['WATER_RIGHT_ID', 'APPL_ID', 'YEAR', 'AMOUNT', 'FACE_VALUE_AMOUNT', 
+                           '%_Of_FACE_VALUE', 'INI_REPORTED_DIV_AMOUNT', 'INI_REPORTED_DIV_UNIT', 'FACE_VALUE_AMOUNT',
+                           'LATITUDE', 'LONGITUDE', 'HUC_12_NUMBER', 'HUC_8_NUMBER',]]
+direct_store = users.merge(flag_2_data, left_on = "APPL_ID", right_on = "APPL_ID")
+
+
+flag_2_data.columns
+
+flag_2_data.head()
+
+
+
 # take a subset of columns
 flag_2_data = flag_2_data[['WATER_RIGHT_ID', 'APPL_ID', 'YEAR', 'AMOUNT', 'FACE_VALUE_AMOUNT', 
                            '%_Of_FACE_VALUE' ,'POSSIBLE_CONV_ERROR_TIER_1', 'POSSIBLE_CONV_ERROR_TIER_2']]  
+
 flag_2_data.to_csv("output\\f2_unit_conv_error.csv")
         
-
+direct_store.to_csv("output\\flag_2.csv")
 
 
 

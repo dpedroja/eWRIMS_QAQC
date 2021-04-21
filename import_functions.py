@@ -18,7 +18,9 @@ def import_flat_file():
                  "POD_STATUS", 
                  "POD_COUNT", 
                  "LATITUDE", "LONGITUDE", 
-                 "YEAR_DIVERSION_COMMENCED", 
+                 "YEAR_DIVERSION_COMMENCED",
+                 "INI_REPORTED_DIV_AMOUNT",
+                 "INI_REPORTED_DIV_UNIT",
                  "SUB_TYPE",
                  "RECEIPT_DATE",
                  "APPLICATION_ACCEPTANCE_DATE", 
@@ -81,6 +83,7 @@ def import_flat_file_season():
     season_use = pd.read_csv("eWRIMS_data/ewrims_flat_file_use_season.csv", usecols = flat_season_cols, low_memory = False)
     return season_use
 
+# water diversion, i.e., combined DIRECT + STORAGE
 def import_rms(rows):
     import pandas as pd
     # read in RMS data
@@ -100,7 +103,7 @@ def import_rms(rows):
 #     # aggregate monthly use into annual use
 #     rms_annual = rms_annual.groupby(["WATER_RIGHT_ID", "APPL_ID", "YEAR"]).sum()
 #     return rms_annual
-
+    
 def import_rms_annual(rows):
     # read in RMS data
     rms_annual = import_rms(rows)
@@ -109,6 +112,7 @@ def import_rms_annual(rows):
     rms_annual.reset_index(inplace = True)
     return rms_annual
 
+# water diversion, i.e., combined DIRECT + STORAGE by month
 def import_rms_monthly(rows):
     # read in RMS data
     rms_monthly = import_rms(rows)
